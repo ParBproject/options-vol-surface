@@ -1,0 +1,24 @@
+{
+  "ticker": "SPY",
+  "asof_close_date": "2026-10-22",
+  "spot_close": 763.9600219726562,
+  "snapshot_utc": "2026-10-23T05:01:11+00:00",
+  "rate_13w_tbill_irx": 0.040219998359680174,
+  "rate_10y_tnx": 0.04953000068664551,
+  "trailing_12m_dividends": 9.414,
+  "n_dividends": 5,
+  "expiries": [
+    "2026-10-29",
+    "2026-11-06",
+    "2026-11-20",
+    "2026-11-30",
+    "2026-12-18",
+    "2027-01-15",
+    "2027-02-19",
+    "2027-03-31",
+    "2027-06-30",
+    "2027-09-30",
+    "2028-06-16"
+  ],
+  "source": "yfinance (Yahoo Finance), current chain snapshot; not historical"
+}
