@@ -24,3 +24,10 @@ web: web-data web-test
 	cd web && npm run build
 deploy: web    ## publish web/dist to the gh-pages branch
 	bash scripts/deploy_pages.sh
+
+## ONLINE launch checks (not part of `all`): README screenshots/GIF (Playwright + ffmpeg) and link check.
+.PHONY: shots links
+shots:
+	$(PY) scripts/shoot_readme.py
+links:
+	$(PY) scripts/check_links.py
