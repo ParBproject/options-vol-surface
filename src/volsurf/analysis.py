@@ -46,13 +46,21 @@ def main() -> dict:
         kk = np.linspace(g["k"].min(), g["k"].max(), 200)
         gmin = float(svi.g_function(kk, p).min())
         iv_at = lambda x, p=p, T=T: float(np.sqrt(svi.total_var(np.log(x), **p) / T))  # noqa: E731
-        slices.append({"expiry": exp.date().isoformat(), "days": int(round(T * 365)), "n_quotes": int(len(g)),
+        slices.append({"k_quoted_min": float(g["k"].min()), "k_quoted_max": float(g["k"].max()),
+                       "expiry": exp.date().isoformat(), "days": int(round(T * 365)), "n_quotes": int(len(g)),
                        "atm_iv": iv_at(1.0), "iv_90": iv_at(0.9), "iv_110": iv_at(1.1),
                        "skew_90_110": iv_at(0.9) - iv_at(1.1), "fit_rmse_vol": rmse,
                        "butterfly_min_g": gmin, "butterfly_ok": gmin >= 0, "svi": p})
         params.append(p)
         solved.loc[g.index, "svi_iv"] = fit_iv
     cal = svi.calendar_violations(params, GRID)
+    # violations where k lies inside the quoted range of BOTH expiries (i.e. not SVI extrapolation)
+    ws = np.array([svi.total_var(GRID, **p) for p in params])
+    cal_in = 0
+    for i, d in enumerate(np.diff(ws, axis=0)):
+        lo = max(slices[i]["k_quoted_min"], slices[i + 1]["k_quoted_min"])
+        hi = min(slices[i]["k_quoted_max"], slices[i + 1]["k_quoted_max"])
+        cal_in += int(((d < -1e-6) & (GRID >= lo) & (GRID <= hi)).sum())
     s30 = min(slices, key=lambda s: abs(s["days"] - 30))
     T30 = s30["days"] / 365
     F30 = S * np.exp((r - q) * T30)
@@ -68,6 +76,7 @@ def main() -> dict:
                    "raw_with_positive_bid": int((raw["bid"] > 0).sum())},
         "slices": slices,
         "arbitrage": {"butterfly_ok_slices": sum(s["butterfly_ok"] for s in slices), "calendar_violations": cal,
+                      "calendar_violations_in_quoted_range": cal_in,
                       "calendar_grid_points": int(len(GRID) * (len(params) - 1)),
                       "calendar_pairs": [dict(v, near=slices[v["pair"]]["expiry"], far=slices[v["pair"] + 1]["expiry"])
                                          for v in svi.calendar_violations_by_pair(params, GRID)]},
