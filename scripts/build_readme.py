@@ -4,6 +4,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 S = json.loads((ROOT / "results" / "summary.json").read_text())
+META = json.loads((ROOT / "data" / "raw" / "meta.json").read_text())
+MANIFEST = json.loads((ROOT / "data" / "MANIFEST.json").read_text())
 snap, inp, cnt, arb, gx = S["snapshot"], S["inputs"], S["counts"], S["arbitrage"], S["greeks_example"]
 sl = S["slices"]
 
@@ -19,7 +21,26 @@ pairs = "; ".join(f"{p['near']} -> {p['far']}: {p['points']} points, log-moneyne
                   for p in arb["calendar_pairs"]) or "none"
 lo = min(sl, key=lambda s: s["atm_iv"])
 greek_rows = "\n".join(f"| {g} | {gx['call'][g]:.4f} | {gx['put'][g]:.4f} |" for g in ("delta", "gamma", "vega", "theta", "rho"))
+N_CHAIN = sum(1 for f in MANIFEST if f.endswith(("_call.csv", "_put.csv")))
+PROVENANCE = "\n".join([
+    "## Data provenance",
+    "",
+    f"- **Option chain:** {META['ticker']} calls and puts for {len(META['expiries'])} expiries",
+    f"  ({META['expiries'][0]} to {META['expiries'][-1]}), source: {META['source']}.",
+    f"  Snapshot taken {META['snapshot_utc']} (UTC); quotes filtered to last trades on the {META['asof_close_date']} close.",
+    f"- **Spot and rates:** SPY close {META['spot_close']:.2f}; 13-week T-bill (^IRX) {META['rate_13w_tbill_irx'] * 100:.2f}%;",
+    f"  trailing-12-month dividends ${META['trailing_12m_dividends']:.3f} from {META['n_dividends']} payments (Yahoo Finance).",
+    f"- **Frozen snapshot:** {len(MANIFEST)} files in `data/raw/` ({N_CHAIN} chain CSVs plus `meta.json`),",
+    "  each SHA-256 hashed in `data/MANIFEST.json`. `make all` checks the hashes and fails if any file has changed.",
+    "- **Not historical:** Yahoo serves only the current chain, so this exact snapshot cannot be re-downloaded.",
+    "  `make fetch` takes a new snapshot, which changes the hashes and every result.",
+    "- **Terms:** the snapshot is committed only so the study reproduces. Check Yahoo's terms before reusing it.",
+    "",
+    "",
+])
 text = f"""# options-vol-surface
+
+[![CI](https://github.com/ParBproject/options-vol-surface/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ParBproject/options-vol-surface/actions/workflows/ci.yml)
 
 Black-Scholes pricing and Greeks, implied-volatility solving, and an **SVI-fitted implied-volatility surface** for
 {snap['ticker']} from a real option-chain snapshot (close of {snap['asof_close_date']}), with butterfly and calendar
@@ -72,7 +93,7 @@ Vega and rho per 1.00 change, theta per year.
 |---|---|---|
 {greek_rows}
 
-## Method
+{PROVENANCE}## Method
 
 - Inputs: rate {pct(inp['rate'])} ({inp['rate_source']}); dividend yield {pct(inp['div_yield'])} (trailing-12-month
   cash dividends / spot, continuous). Forward F = S e^((r-q)T); log-moneyness k = ln(K/F).
