@@ -1,6 +1,6 @@
 PY ?= python
 .PHONY: all verify analyze readme lint test fetch
-all: verify lint test
+all: verify analyze readme lint test
 fetch:        ## ONLINE: re-download raw data (changes hashes; not part of `all`)
 	$(PY) scripts/fetch_data.py && $(PY) scripts/manifest.py
 verify:
