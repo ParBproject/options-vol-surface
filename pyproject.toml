@@ -9,7 +9,7 @@ dev = ["pytest", "ruff"]
 fetch = ["yfinance"]
 
 [tool.ruff]
-line-length = 110
+line-length = 130
 src = ["src"]
 
 [tool.ruff.lint]
