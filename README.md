@@ -1,5 +1,7 @@
 # options-vol-surface
 
+[![CI](https://github.com/ParBproject/options-vol-surface/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ParBproject/options-vol-surface/actions/workflows/ci.yml)
+
 Black-Scholes pricing and Greeks, implied-volatility solving, and an **SVI-fitted implied-volatility surface** for
 SPY from a real option-chain snapshot (close of 2026-10-22), with butterfly and calendar
 arbitrage checks. Every number below is generated from `results/summary.json` by `scripts/build_readme.py` and pinned
@@ -64,6 +66,19 @@ Vega and rho per 1.00 change, theta per year.
 | vega | 85.8196 | 85.8196 |
 | theta | -91.0051 | -69.6423 |
 | rho | 29.5681 | -31.0980 |
+
+## Data provenance
+
+- **Option chain:** SPY calls and puts for 11 expiries
+  (2026-10-29 to 2028-06-16), source: yfinance (Yahoo Finance), current chain snapshot; not historical.
+  Snapshot taken 2026-10-23T05:01:11+00:00 (UTC); quotes filtered to last trades on the 2026-10-22 close.
+- **Spot and rates:** SPY close 763.96; 13-week T-bill (^IRX) 4.02%;
+  trailing-12-month dividends $9.414 from 5 payments (Yahoo Finance).
+- **Frozen snapshot:** 23 files in `data/raw/` (22 chain CSVs plus `meta.json`),
+  each SHA-256 hashed in `data/MANIFEST.json`. `make all` checks the hashes and fails if any file has changed.
+- **Not historical:** Yahoo serves only the current chain, so this exact snapshot cannot be re-downloaded.
+  `make fetch` takes a new snapshot, which changes the hashes and every result.
+- **Terms:** the snapshot is committed only so the study reproduces. Check Yahoo's terms before reusing it.
 
 ## Method
 
