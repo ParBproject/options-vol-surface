@@ -5,6 +5,25 @@ SPY from a real option-chain snapshot (close of 2026-10-22), with butterfly and 
 arbitrage checks. Every number below is generated from `results/summary.json` by `scripts/build_readme.py` and pinned
 by tests.
 
+**Live app: [parbproject.github.io/options-vol-surface](https://parbproject.github.io/options-vol-surface/)**
+
+![Demo](docs/img/demo.gif)
+
+| Desktop | Mobile |
+|---|---|
+| ![Overview](docs/img/overview.png) | ![Mobile](docs/img/mobile.png) |
+
+| Greeks explorer | Calendar check |
+|---|---|
+| ![Greeks](docs/img/greeks.png) | ![Arbitrage](docs/img/arbitrage.png) |
+
+## What this demonstrates
+
+- **Interactive surface:** rotatable 3D SVI surface with market quotes, smiles per expiry, a Greeks explorer driven by the SVI
+  smile, and butterfly/calendar arbitrage views. Browser math is tested against the Python results.
+- **Reproducible research:** frozen raw data with SHA-256 manifest, `make all` runs offline, results JSON pinned by tests,
+  this README generated from the results.
+
 ## Headline
 
 - 1077 out-of-the-money quotes across 11 expiries (7 to 603 days),
@@ -68,4 +87,6 @@ Vega and rho per 1.00 change, theta per year.
 ```bash
 pip install -e .[dev]
 make all      # verify hashes, run analysis, rebuild README, ruff, pytest (offline)
+make web      # export app data, run Node parity tests, build the React app (Node 20+)
+make deploy   # publish web/dist to the gh-pages branch
 ```
