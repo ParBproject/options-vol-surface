@@ -16,7 +16,8 @@ by tests.
 - SVI fit error (RMSE) is 0.22 to 0.67
   vol points per slice. Butterfly-arbitrage-free (Gatheral g >= 0) on 11 of 11 slices.
 - Calendar check: total variance decreases with maturity at 49 of 1210
-  grid points (log-moneyness -0.30 to 0.30). All are in the upside call wing: 2026-11-30 -> 2026-12-18: 27 points, log-moneyness 0.17 to 0.30; 2027-01-15 -> 2027-02-19: 16 points, log-moneyness 0.23 to 0.30; 2027-03-31 -> 2027-06-30: 6 points, log-moneyness 0.28 to 0.30.
+  grid points (log-moneyness -0.30 to 0.30), 0 of them inside the strikes actually
+  quoted for both expiries, so they come from SVI extrapolation in the upside call wing: 2026-11-30 -> 2026-12-18: 27 points, log-moneyness 0.17 to 0.30; 2027-01-15 -> 2027-02-19: 16 points, log-moneyness 0.23 to 0.30; 2027-03-31 -> 2027-06-30: 6 points, log-moneyness 0.28 to 0.30.
   Slices are fitted independently, so this is reported, not hidden.
 
 | Expiry | Days | Quotes | ATM IV | IV 90% | IV 110% | Skew (vol pts) | SVI RMSE (vol pts) | No butterfly arb |

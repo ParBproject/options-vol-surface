@@ -37,7 +37,8 @@ by tests.
 - SVI fit error (RMSE) is {min(s['fit_rmse_vol'] for s in sl) * 100:.2f} to {max(s['fit_rmse_vol'] for s in sl) * 100:.2f}
   vol points per slice. Butterfly-arbitrage-free (Gatheral g >= 0) on {arb['butterfly_ok_slices']} of {len(sl)} slices.
 - Calendar check: total variance decreases with maturity at {arb['calendar_violations']} of {arb['calendar_grid_points']}
-  grid points (log-moneyness -0.30 to 0.30). All are in the upside call wing: {pairs}.
+  grid points (log-moneyness -0.30 to 0.30), {arb['calendar_violations_in_quoted_range']} of them inside the strikes actually
+  quoted for both expiries, so they come from SVI extrapolation in the upside call wing: {pairs}.
   Slices are fitted independently, so this is reported, not hidden.
 
 | Expiry | Days | Quotes | ATM IV | IV 90% | IV 110% | Skew (vol pts) | SVI RMSE (vol pts) | No butterfly arb |
