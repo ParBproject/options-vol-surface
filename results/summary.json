@@ -29,6 +29,8 @@
   },
   "slices": [
     {
+      "k_quoted_min": -0.2421222674783544,
+      "k_quoted_max": 0.040547263149882155,
       "expiry": "2026-10-29",
       "days": 7,
       "n_quotes": 90,
@@ -48,6 +50,8 @@
       }
     },
     {
+      "k_quoted_min": -0.3480958827453468,
+      "k_quoted_max": 0.06352309093719583,
       "expiry": "2026-11-06",
       "days": 15,
       "n_quotes": 130,
@@ -67,6 +71,8 @@
       }
     },
     {
+      "k_quoted_min": -0.3399521519564633,
+      "k_quoted_max": 0.11036352231705285,
       "expiry": "2026-11-20",
       "days": 29,
       "n_quotes": 142,
@@ -86,6 +92,8 @@
       }
     },
     {
+      "k_quoted_min": -0.34993518157284487,
+      "k_quoted_max": 0.10959714780559521,
       "expiry": "2026-11-30",
       "days": 39,
       "n_quotes": 194,
@@ -105,6 +113,8 @@
       }
     },
     {
+      "k_quoted_min": -0.34209800058854445,
+      "k_quoted_max": 0.14270384975614095,
       "expiry": "2026-12-18",
       "days": 57,
       "n_quotes": 167,
@@ -124,6 +134,8 @@
       }
     },
     {
+      "k_quoted_min": -0.3351113656573532,
+      "k_quoted_max": 0.16290529981605628,
       "expiry": "2027-01-15",
       "days": 85,
       "n_quotes": 72,
@@ -143,6 +155,8 @@
       }
     },
     {
+      "k_quoted_min": -0.34692616001072707,
+      "k_quoted_max": 0.1602229890259549,
       "expiry": "2027-02-19",
       "days": 120,
       "n_quotes": 64,
@@ -162,6 +176,8 @@
       }
     },
     {
+      "k_quoted_min": -0.34999165805655746,
+      "k_quoted_max": 0.17901628479262358,
       "expiry": "2027-03-31",
       "days": 160,
       "n_quotes": 63,
@@ -181,6 +197,8 @@
       }
     },
     {
+      "k_quoted_min": -0.3298146770448705,
+      "k_quoted_max": 0.18279506851462157,
       "expiry": "2027-06-30",
       "days": 251,
       "n_quotes": 51,
@@ -200,6 +218,8 @@
       }
     },
     {
+      "k_quoted_min": -0.31916574545087906,
+      "k_quoted_max": 0.22275046538514276,
       "expiry": "2027-09-30",
       "days": 343,
       "n_quotes": 62,
@@ -219,6 +239,8 @@
       }
     },
     {
+      "k_quoted_min": -0.3479021124309308,
+      "k_quoted_max": 0.31833761520909015,
       "expiry": "2028-06-16",
       "days": 603,
       "n_quotes": 42,
@@ -241,6 +263,7 @@
   "arbitrage": {
     "butterfly_ok_slices": 11,
     "calendar_violations": 49,
+    "calendar_violations_in_quoted_range": 0,
     "calendar_grid_points": 1210,
     "calendar_pairs": [
       {

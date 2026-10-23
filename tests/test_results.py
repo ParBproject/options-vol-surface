@@ -40,6 +40,7 @@ def test_arbitrage_pinned():
     assert a["butterfly_ok_slices"] == 11
     assert a["calendar_violations"] == 49
     assert all(p["k_min"] > 0 for p in a["calendar_pairs"])  # only the upside call wing
+    assert a["calendar_violations_in_quoted_range"] == 0  # all are SVI extrapolation
 
 
 def test_greeks_example_parity():
