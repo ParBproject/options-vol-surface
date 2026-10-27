@@ -54,7 +54,7 @@ def main() -> dict:
         params.append(p)
         solved.loc[g.index, "svi_iv"] = fit_iv
     cal = svi.calendar_violations(params, GRID)
-    # violations where k lies inside the quoted range of BOTH expiries (i.e. not SVI extrapolation)
+    # violations whose k is inside both expiries' quoted strikes
     ws = np.array([svi.total_var(GRID, **p) for p in params])
     cal_in = 0
     for i, d in enumerate(np.diff(ws, axis=0)):

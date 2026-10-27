@@ -1,4 +1,4 @@
-"""Pin headline numbers so any change to data or method shows up in review."""
+"""Checks on results/summary.json for this frozen snapshot."""
 import json
 import math
 from pathlib import Path
@@ -7,7 +7,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 S = json.loads((ROOT / "results" / "summary.json").read_text())
-PINNED_ATM = {  # expiry: ATM IV
+PINNED_ATM = {  # expiry -> SVI vol at K = F
     "2026-10-29": 0.1575,
     "2026-11-06": 0.1584,
     "2026-11-20": 0.1499,

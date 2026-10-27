@@ -3,5 +3,15 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .venv/
+*.egg-info/
 web/node_modules/
 web/dist/
+
+# local agent / editor tooling
+.cursor/
+.cursorrules
+AGENTS.md
+agent-notes/
+prompts/
+plans/
+*.plan.md
