@@ -11,7 +11,6 @@ export function useWidth(initial = 600) {
   return [ref, w];
 }
 
-// Simple multi-series line/scatter chart in real pixels.
 export function XYChart({ series, xfmt, yfmt, height = 260, label, xLabel, zeroLine, vline }) {
   const [ref, W] = useWidth();
   const H = height, L = 52, R = 12, T = 12, B = 34;

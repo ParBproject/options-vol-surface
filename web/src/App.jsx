@@ -73,21 +73,20 @@ export default function App() {
   return (
     <div className="wrap">
       <header>
-        <div className="eyebrow">SPY volatility surface · close of {app.snapshot.asof_close_date}</div>
-        <h1>The <span>SPY implied-volatility surface</span>, fitted with SVI and checked for arbitrage</h1>
+        <div className="eyebrow">SPY · close of {app.snapshot.asof_close_date}</div>
+        <h1>Implied <span>volatility surface</span></h1>
         <p className="lede">
-          {app.counts.iv_solved.toLocaleString()} out-of-the-money option quotes across {sl.length} expiries ({sl[0].days} to{" "}
-          {sl[sl.length - 1].days} days), spot ${app.snapshot.spot_close.toFixed(2)}. Implied vols are solved from Black-Scholes, each expiry
-          gets a raw-SVI smile, and the surface is tested for butterfly and calendar arbitrage. All math reruns in your browser and matches
-          the Python results.
+          {app.counts.iv_solved.toLocaleString()} out-of-the-money quotes across {sl.length} expiries ({sl[0].days} to{" "}
+          {sl[sl.length - 1].days} days), spot ${app.snapshot.spot_close.toFixed(2)}. Implied vols are Black-Scholes
+          from last trades. Each expiry is a raw SVI fit. ATM, 90% and 110% below are that fit at K/F = 1, 0.9 and 1.1.
         </p>
       </header>
 
       <div className="kpis" style={{ marginBottom: 16 }}>
-        {[["ATM IV, " + sl[0].days + "d", pct(sl[0].atm_iv, 2)], ["ATM IV, " + sl[sl.length - 1].days + "d", pct(sl[sl.length - 1].atm_iv, 2)],
-          ["Skew 90/110, " + sl[0].days + "d", `${(sl[0].skew_90_110 * 100).toFixed(1)} pts`],
+        {[["SVI ATM, " + sl[0].days + "d", pct(sl[0].atm_iv, 2)], ["SVI ATM, " + sl[sl.length - 1].days + "d", pct(sl[sl.length - 1].atm_iv, 2)],
+          ["SVI skew 90/110, " + sl[0].days + "d", `${(sl[0].skew_90_110 * 100).toFixed(1)} pts`],
           ["SVI fit RMSE", `${(Math.min(...sl.map((x) => x.fit_rmse_vol)) * 100).toFixed(2)}–${(Math.max(...sl.map((x) => x.fit_rmse_vol)) * 100).toFixed(2)} pts`],
-          ["Butterfly-free slices", `${arb.butterfly_ok_slices} / ${sl.length}`],
+          ["Slices with g(k) ≥ 0", `${arb.butterfly_ok_slices} / ${sl.length}`],
           ["Calendar violations", `${arb.calendar_violations} / ${arb.calendar_grid_points}`]].map(([l, v]) => (
           <div className="kpi" key={l}><div className="v">{v}</div><div className="l">{l}</div></div>
         ))}
@@ -102,13 +101,18 @@ export default function App() {
           <Surface3D slices={sl} quotes={app.quotes} showQuotes={showQuotes} selected={sel} onSelect={setSel} />
         </section>
         <section className="card span-4">
-          <h2>Term structure</h2>
-          <XYChart height={190} label="ATM implied volatility by days to expiry" xfmt={(v) => `${Math.round(v)}d`} yfmt={(v) => pct(v, 1)}
+          <h2>SVI vol at the forward</h2>
+          <XYChart height={190} label="SVI implied volatility at the forward, by days to expiry" xfmt={(v) => `${Math.round(v)}d`} yfmt={(v) => pct(v, 1)}
             series={[{ name: "ATM", color: "#10b981", x: sl.map((x) => x.days), y: sl.map((x) => x.atm_iv) },
               { name: "dots", dots: true, color: "#10b981", r: 3.5, x: sl.map((x) => x.days), y: sl.map((x) => x.atm_iv) }]} />
-          <h2 style={{ marginTop: 12 }}>Put skew (IV 90% − 110%)</h2>
-          <XYChart height={170} label="Skew by days to expiry" xfmt={(v) => `${Math.round(v)}d`} yfmt={(v) => `${(v * 100).toFixed(0)}`}
+          <h2 style={{ marginTop: 12 }}>Skew, 90% minus 110% of forward</h2>
+          <XYChart height={170} label="SVI skew by days to expiry" xfmt={(v) => `${Math.round(v)}d`} yfmt={(v) => `${(v * 100).toFixed(0)}`}
             series={[{ name: "skew", color: "#fbbf24", x: sl.map((x) => x.days), y: sl.map((x) => x.skew_90_110) }]} />
+          {sl.some((x) => x.k_quoted_max < Math.log(1.1)) && (
+            <p className="note">
+              On {sl.filter((x) => x.k_quoted_max < Math.log(1.1)).map((x) => `${x.days}d`).join(" and ")}, K/F = 1.1 is past the last quoted call, so that side of the skew is the fitted wing.
+            </p>
+          )}
         </section>
 
         <section className="card span-6">
@@ -163,17 +167,18 @@ export default function App() {
           <h2>Calendar check · Δ total variance between consecutive expiries</h2>
           <CalendarHeat slices={sl} grid={grid} />
           <p className="note">
-            Red cells: total variance falls with maturity ({arb.calendar_violations} of {arb.calendar_grid_points} grid points), all in the
-            upside call wing ({arb.calendar_pairs.map((p) => `${p.near}→${p.far}`).join(", ")}). {arb.calendar_violations_in_quoted_range} of them
-            fall inside the strikes quoted for both expiries (faded cells are outside), so they come from SVI extrapolation. Slices are
-            fitted independently, so this is shown, not hidden.
+            Red cells: total variance falls with maturity ({arb.calendar_violations} of {arb.calendar_grid_points} grid points), on{" "}
+            {arb.calendar_pairs.map((p) => `${p.near}→${p.far}`).join(", ")}.{" "}
+            {arb.calendar_violations_in_quoted_range === 0
+              ? "None of them sit inside the strikes quoted on both expiries."
+              : `${arb.calendar_violations_in_quoted_range} of them sit inside the strikes quoted on both expiries.`}{" "}
+            Faded cells are outside that overlap. Each expiry is fit on its own.
           </p>
         </section>
       </div>
       <footer>
-        Data: yfinance option-chain snapshot ({app.snapshot.snapshot_utc} UTC). yfinance chains are current-only and the snapshot was
-        taken after hours, so IVs use last-trade prices. Not investment advice.{" "}
-        <a href="https://github.com/ParBproject/options-vol-surface">Code, method and limits on GitHub</a>.
+        yfinance chain snapshot, {app.snapshot.snapshot_utc} UTC. Yahoo only publishes the current chain, and this one was taken after the close, so the IVs are last trades.{" "}
+        <a href="https://github.com/ParBproject/options-vol-surface">Code, method and limits</a>.
       </footer>
     </div>
   );
