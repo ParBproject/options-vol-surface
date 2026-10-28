@@ -7,11 +7,4 @@ __pycache__/
 web/node_modules/
 web/dist/
 
-# local agent / editor tooling
-.cursor/
-.cursorrules
-AGENTS.md
-agent-notes/
-prompts/
-plans/
-*.plan.md
+# Editors and operating systems
