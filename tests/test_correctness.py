@@ -12,10 +12,42 @@ import pytest
 from volsurf import bs, svi
 from volsurf.iv import implied_vol
 
-# Φ(0.1) and n(0.1), from the error function. Used by the zero-rate case below,
-# where d1 = 0.1 and d2 = -0.1 exactly, so the price is not a fitted number.
-_PHI_01 = 0.539827837277029
-_N_01 = 0.396952547477012
+
+def _ncdf(x: float) -> float:
+    """Standard normal CDF from libm's erf, not scipy.stats.norm (which bs.py uses)."""
+    return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
+
+
+def _npdf(x: float) -> float:
+    return math.exp(-0.5 * x * x) / math.sqrt(2.0 * math.pi)
+
+
+# Φ(0.1) and n(0.1). The zero-rate case has d1 = 0.1 and d2 = -0.1 exactly.
+_PHI_01 = _ncdf(0.1)
+_N_01 = _npdf(0.1)
+
+
+def _bs_reference(S, K, T, r, q, vol, kind):
+    """Textbook Black-Scholes-Merton evaluated with math.erf, not volsurf.bs."""
+    sqrt_t = math.sqrt(T)
+    d1 = (math.log(S / K) + (r - q + 0.5 * vol * vol) * T) / (vol * sqrt_t)
+    d2 = d1 - vol * sqrt_t
+    dfq, dfr = math.exp(-q * T), math.exp(-r * T)
+    pdf = _npdf(d1)
+    gamma = dfq * pdf / (S * vol * sqrt_t)
+    vega = S * dfq * pdf * sqrt_t
+    common = -S * dfq * pdf * vol / (2.0 * sqrt_t)
+    if kind == "call":
+        price = S * dfq * _ncdf(d1) - K * dfr * _ncdf(d2)
+        delta = dfq * _ncdf(d1)
+        theta = common - r * K * dfr * _ncdf(d2) + q * S * dfq * _ncdf(d1)
+        rho = K * T * dfr * _ncdf(d2)
+    else:
+        price = K * dfr * _ncdf(-d2) - S * dfq * _ncdf(-d1)
+        delta = -dfq * _ncdf(-d1)
+        theta = common + r * K * dfr * _ncdf(-d2) - q * S * dfq * _ncdf(-d1)
+        rho = -K * T * dfr * _ncdf(-d2)
+    return price, {"delta": delta, "gamma": gamma, "vega": vega, "theta": theta, "rho": rho}
 
 
 def test_black_scholes_zero_rate_atm_closed_form():
@@ -27,7 +59,8 @@ def test_black_scholes_zero_rate_atm_closed_form():
     premium = S * (2 * _PHI_01 - 1)
     assert call == pytest.approx(premium, abs=1e-12)
     assert put == pytest.approx(premium, abs=1e-12)
-    assert call == pytest.approx(7.965567455406, abs=1e-12)
+    # 100 * (2 Φ(0.1) - 1), from the Φ above rather than from bs.price.
+    assert premium == pytest.approx(7.965567455406, abs=1e-12)
 
     call_g = bs.greeks(S, K, T, r, q, vol, "call")
     put_g = bs.greeks(S, K, T, r, q, vol, "put")
@@ -45,14 +78,16 @@ def test_black_scholes_zero_rate_atm_closed_form():
 def test_black_scholes_haug_textbook():
     # Espen Haug, The Complete Guide to Option Pricing Formulas: European option
     # with S=60, K=65, T=0.25, r=0.08, b=r (so q=0), σ=0.30. Published prices
-    # are 2.1334 (call) and 5.8463 (put); the extra digits are the same closed form.
+    # are 2.1334 (call) and 5.8463 (put).
     S, K, T, r, q, vol = 60.0, 65.0, 0.25, 0.08, 0.0, 0.30
     call = bs.price(S, K, T, r, q, vol, "call")
     put = bs.price(S, K, T, r, q, vol, "put")
-    assert call == pytest.approx(2.1334, abs=5e-5)
-    assert put == pytest.approx(5.8463, abs=5e-5)
-    assert call == pytest.approx(2.133368444916, abs=1e-12)
-    assert put == pytest.approx(5.846282209855, abs=1e-12)
+    ref_call, _ = _bs_reference(S, K, T, r, q, vol, "call")
+    ref_put, _ = _bs_reference(S, K, T, r, q, vol, "put")
+    assert ref_call == pytest.approx(2.1334, abs=5e-5)
+    assert ref_put == pytest.approx(5.8463, abs=5e-5)
+    assert call == pytest.approx(ref_call, abs=1e-12)
+    assert put == pytest.approx(ref_put, abs=1e-12)
     assert call - put == pytest.approx(S - K * math.exp(-r * T), abs=1e-12)
     assert implied_vol(call, S, K, T, r, q, "call") == pytest.approx(vol, abs=1e-10)
     assert implied_vol(put, S, K, T, r, q, "put") == pytest.approx(vol, abs=1e-10)
@@ -61,45 +96,31 @@ def test_black_scholes_haug_textbook():
 def test_black_scholes_hull_textbook():
     # Hull, Options, Futures, and Other Derivatives: European call on a
     # non-dividend-paying stock, S=49, K=50, r=0.05, σ=0.20, T=20/52.
-    # The text rounds the price to 2.40; the closed form is 2.400527323272.
+    # The text rounds the price to 2.40.
     S, K, T, r, q, vol = 49.0, 50.0, 20 / 52, 0.05, 0.0, 0.20
     call = bs.price(S, K, T, r, q, vol, "call")
     put = bs.price(S, K, T, r, q, vol, "put")
-    assert call == pytest.approx(2.4005, abs=5e-5)
-    assert call == pytest.approx(2.400527323272, abs=1e-12)
-    assert put == pytest.approx(2.448175441282, abs=1e-12)
+    ref_call, _ = _bs_reference(S, K, T, r, q, vol, "call")
+    ref_put, _ = _bs_reference(S, K, T, r, q, vol, "put")
+    assert ref_call == pytest.approx(2.4005, abs=5e-5)
+    assert call == pytest.approx(ref_call, abs=1e-12)
+    assert put == pytest.approx(ref_put, abs=1e-12)
     assert call - put == pytest.approx(S * math.exp(-q * T) - K * math.exp(-r * T), abs=1e-12)
 
 
 def test_black_scholes_with_dividend_yield():
-    # Continuous yield, so this is not the q=0 textbook case. Digits are the
-    # closed form evaluated with Φ from the error function.
+    # q > 0, so this is not the textbook q = 0 case. Expected values come from
+    # the erf reference above, not from a table copied out of bs.price.
     S, K, T, r, q, vol = 100.0, 95.0, 0.75, 0.03, 0.015, 0.25
     call = bs.price(S, K, T, r, q, vol, "call")
     put = bs.price(S, K, T, r, q, vol, "put")
-    assert call == pytest.approx(11.604174999518, abs=1e-12)
-    assert put == pytest.approx(5.609238071762, abs=1e-12)
+    ref_call, ref_call_g = _bs_reference(S, K, T, r, q, vol, "call")
+    ref_put, ref_put_g = _bs_reference(S, K, T, r, q, vol, "put")
+    assert call == pytest.approx(ref_call, abs=1e-12)
+    assert put == pytest.approx(ref_put, abs=1e-12)
     assert call - put == pytest.approx(S * math.exp(-q * T) - K * math.exp(-r * T), abs=1e-12)
-    assert bs.greeks(S, K, T, r, q, vol, "call") == pytest.approx(
-        {
-            "delta": 0.647043230041,
-            "gamma": 0.016838644664,
-            "vega": 31.572458744721,
-            "theta": -5.884516052529,
-            "rho": 39.825111003408,
-        },
-        abs=1e-12,
-    )
-    assert bs.greeks(S, K, T, r, q, vol, "put") == pytest.approx(
-        {
-            "delta": -0.341769814571,
-            "gamma": 0.016838644664,
-            "vega": 31.572458744721,
-            "theta": -4.581144593445,
-            "rho": -29.839664646618,
-        },
-        abs=1e-12,
-    )
+    assert bs.greeks(S, K, T, r, q, vol, "call") == pytest.approx(ref_call_g, abs=1e-12)
+    assert bs.greeks(S, K, T, r, q, vol, "put") == pytest.approx(ref_put_g, abs=1e-12)
 
 
 def test_iv_round_trip_across_moneyness_and_maturity():
@@ -130,14 +151,26 @@ def test_iv_deep_itm_and_otm_round_trip():
         assert implied_vol(px, S, K, T, r, q, kind) == pytest.approx(vol, abs=1e-8)
 
 
-@pytest.mark.parametrize("kind", ["call", "put"])
-def test_iv_rejects_prices_at_or_outside_bounds(kind):
-    S, K, T, r, q = 100.0, 105.0, 0.5, 0.02, 0.01
-    df_s, df_k = math.exp(-q * T), math.exp(-r * T)
-    intrinsic = max(S * df_s - K * df_k, 0.0) if kind == "call" else max(K * df_k - S * df_s, 0.0)
+@pytest.mark.parametrize("kind,strike", [("call", 90.0), ("put", 110.0), ("call", 105.0), ("put", 105.0)])
+def test_iv_rejects_prices_outside_bounds(kind, strike):
+    S, T, r, q = 100.0, 0.5, 0.02, 0.01
+    K = strike
+    # Same exp as implied_vol, so "exactly at intrinsic" is that function's bound
+    # and not one ulp above it.
+    df_s, df_k = np.exp(-q * T), np.exp(-r * T)
+    raw = S * df_s - K * df_k if kind == "call" else K * df_k - S * df_s
+    intrinsic = max(raw, 0.0)
     upper = S * df_s if kind == "call" else K * df_k
-    for price in (intrinsic - 0.05, intrinsic, upper, upper + 0.05, -1.0):
+    # Strictly outside the no-arbitrage interval. These have no volatility.
+    for price in (intrinsic - 0.05, upper + 0.05, -1.0):
         assert math.isnan(implied_vol(price, S, K, T, r, q, kind))
+    # Exactly at discounted intrinsic is the vol → 0 limit. The solver bracket
+    # starts at 1e-4, so this endpoint is not inside the open interval and the
+    # function returns NaN rather than 0. Separate from the violations above:
+    # returning 0 here would be a reasonable later change, not a broken check.
+    assert math.isnan(implied_vol(intrinsic, S, K, T, r, q, kind))
+    # The upper bound is reached only as vol → ∞, so no finite vol is returned.
+    assert math.isnan(implied_vol(upper, S, K, T, r, q, kind))
     inside = float(bs.price(S, K, T, r, q, 0.22, kind))
     assert intrinsic < inside < upper
     assert implied_vol(inside, S, K, T, r, q, kind) == pytest.approx(0.22, abs=1e-8)
@@ -180,8 +213,12 @@ def test_g_function_hand_value_and_butterfly_violation():
     assert svi.g_function(np.linspace(-1.0, 1.0, 401), steep).min() < 0
 
 
+def _flat_smile(k, a, b, sigma):
+    """Raw SVI with ρ = m = 0: w(k) = a + b sqrt(k^2 + σ^2)."""
+    return a + b * np.sqrt(np.asarray(k, dtype=float) ** 2 + sigma**2)
+
+
 def test_calendar_flags_a_crossing_and_passes_a_clean_surface():
-    k = np.array([-0.25, 0.0, 0.25])
     # ρ = m = 0, so w(0) = a + b σ and the wings share sqrt(k^2 + σ^2).
     wing = math.sqrt(0.25**2 + 0.1**2)
     near = {"a": 0.02, "b": 0.3, "rho": 0.0, "m": 0.0, "sigma": 0.1}
@@ -190,13 +227,29 @@ def test_calendar_flags_a_crossing_and_passes_a_clean_surface():
     assert svi.total_var(0.0, **far) == pytest.approx(0.052, abs=1e-12)
     assert svi.total_var(0.25, **near) == pytest.approx(0.02 + 0.3 * wing, abs=1e-12)
     assert svi.total_var(-0.25, **far) == pytest.approx(0.05 + 0.02 * wing, abs=1e-12)
-    # Far expiry is above the near one at the money and below it in both wings.
-    assert svi.total_var(0.0, **far) > svi.total_var(0.0, **near)
-    assert svi.total_var(0.25, **far) < svi.total_var(0.25, **near)
-    assert svi.total_var(-0.25, **far) < svi.total_var(-0.25, **near)
-    assert svi.calendar_violations([near, far], k) == 2
-    assert svi.calendar_violations_by_pair([near, far], k) == [
-        {"pair": 0, "points": 2, "k_min": pytest.approx(-0.25), "k_max": pytest.approx(0.25)}
+
+    # w_far - w_near = 0.03 - 0.28 sqrt(k^2 + σ^2), so the far expiry is above
+    # the near one only for |k| below this threshold and below it outside.
+    sigma = 0.1
+    threshold = math.sqrt((0.03 / 0.28) ** 2 - sigma**2)
+    grid = np.linspace(-0.4, 0.4, 401)
+    hand_near = _flat_smile(grid, 0.02, 0.3, sigma)
+    hand_far = _flat_smile(grid, 0.05, 0.02, sigma)
+    assert np.allclose(svi.total_var(grid, **near), hand_near, atol=1e-12)
+    assert np.allclose(svi.total_var(grid, **far), hand_far, atol=1e-12)
+    violated = hand_far - hand_near < -1e-6
+    assert violated[0] and violated[-1]
+    assert not violated[np.abs(grid) < threshold - 1e-8].any()
+    assert violated[np.abs(grid) > threshold + 1e-8].all()
+    assert int(violated.sum()) > 2
+    assert svi.calendar_violations([near, far], grid) == int(violated.sum())
+    assert svi.calendar_violations_by_pair([near, far], grid) == [
+        {
+            "pair": 0,
+            "points": int(violated.sum()),
+            "k_min": pytest.approx(float(grid[violated].min())),
+            "k_max": pytest.approx(float(grid[violated].max())),
+        }
     ]
 
     grid = np.linspace(-0.4, 0.4, 81)
