@@ -28,26 +28,18 @@ _N_01 = _npdf(0.1)
 
 
 def _bs_reference(S, K, T, r, q, vol, kind):
-    """Textbook Black-Scholes-Merton evaluated with math.erf, not volsurf.bs."""
+    """Textbook Black-Scholes-Merton price, using math.erf rather than volsurf.bs.
+
+    Greeks are not reimplemented here. A second copy of bs.greeks would pass
+    even if that formula were wrong. Callers check Greeks another way.
+    """
     sqrt_t = math.sqrt(T)
     d1 = (math.log(S / K) + (r - q + 0.5 * vol * vol) * T) / (vol * sqrt_t)
     d2 = d1 - vol * sqrt_t
     dfq, dfr = math.exp(-q * T), math.exp(-r * T)
-    pdf = _npdf(d1)
-    gamma = dfq * pdf / (S * vol * sqrt_t)
-    vega = S * dfq * pdf * sqrt_t
-    common = -S * dfq * pdf * vol / (2.0 * sqrt_t)
     if kind == "call":
-        price = S * dfq * _ncdf(d1) - K * dfr * _ncdf(d2)
-        delta = dfq * _ncdf(d1)
-        theta = common - r * K * dfr * _ncdf(d2) + q * S * dfq * _ncdf(d1)
-        rho = K * T * dfr * _ncdf(d2)
-    else:
-        price = K * dfr * _ncdf(-d2) - S * dfq * _ncdf(-d1)
-        delta = -dfq * _ncdf(-d1)
-        theta = common + r * K * dfr * _ncdf(-d2) - q * S * dfq * _ncdf(-d1)
-        rho = -K * T * dfr * _ncdf(-d2)
-    return price, {"delta": delta, "gamma": gamma, "vega": vega, "theta": theta, "rho": rho}
+        return S * dfq * _ncdf(d1) - K * dfr * _ncdf(d2)
+    return K * dfr * _ncdf(-d2) - S * dfq * _ncdf(-d1)
 
 
 def test_black_scholes_zero_rate_atm_closed_form():
@@ -82,12 +74,10 @@ def test_black_scholes_haug_textbook():
     S, K, T, r, q, vol = 60.0, 65.0, 0.25, 0.08, 0.0, 0.30
     call = bs.price(S, K, T, r, q, vol, "call")
     put = bs.price(S, K, T, r, q, vol, "put")
-    ref_call, _ = _bs_reference(S, K, T, r, q, vol, "call")
-    ref_put, _ = _bs_reference(S, K, T, r, q, vol, "put")
-    assert ref_call == pytest.approx(2.1334, abs=5e-5)
-    assert ref_put == pytest.approx(5.8463, abs=5e-5)
-    assert call == pytest.approx(ref_call, abs=1e-12)
-    assert put == pytest.approx(ref_put, abs=1e-12)
+    assert call == pytest.approx(2.1334, abs=5e-5)
+    assert put == pytest.approx(5.8463, abs=5e-5)
+    assert call == pytest.approx(_bs_reference(S, K, T, r, q, vol, "call"), abs=1e-12)
+    assert put == pytest.approx(_bs_reference(S, K, T, r, q, vol, "put"), abs=1e-12)
     assert call - put == pytest.approx(S - K * math.exp(-r * T), abs=1e-12)
     assert implied_vol(call, S, K, T, r, q, "call") == pytest.approx(vol, abs=1e-10)
     assert implied_vol(put, S, K, T, r, q, "put") == pytest.approx(vol, abs=1e-10)
@@ -100,11 +90,9 @@ def test_black_scholes_hull_textbook():
     S, K, T, r, q, vol = 49.0, 50.0, 20 / 52, 0.05, 0.0, 0.20
     call = bs.price(S, K, T, r, q, vol, "call")
     put = bs.price(S, K, T, r, q, vol, "put")
-    ref_call, _ = _bs_reference(S, K, T, r, q, vol, "call")
-    ref_put, _ = _bs_reference(S, K, T, r, q, vol, "put")
-    assert ref_call == pytest.approx(2.4005, abs=5e-5)
-    assert call == pytest.approx(ref_call, abs=1e-12)
-    assert put == pytest.approx(ref_put, abs=1e-12)
+    assert call == pytest.approx(2.4005, abs=5e-5)
+    assert call == pytest.approx(_bs_reference(S, K, T, r, q, vol, "call"), abs=1e-12)
+    assert put == pytest.approx(_bs_reference(S, K, T, r, q, vol, "put"), abs=1e-12)
     assert call - put == pytest.approx(S * math.exp(-q * T) - K * math.exp(-r * T), abs=1e-12)
 
 
@@ -114,13 +102,23 @@ def test_black_scholes_with_dividend_yield():
     S, K, T, r, q, vol = 100.0, 95.0, 0.75, 0.03, 0.015, 0.25
     call = bs.price(S, K, T, r, q, vol, "call")
     put = bs.price(S, K, T, r, q, vol, "put")
-    ref_call, ref_call_g = _bs_reference(S, K, T, r, q, vol, "call")
-    ref_put, ref_put_g = _bs_reference(S, K, T, r, q, vol, "put")
-    assert call == pytest.approx(ref_call, abs=1e-12)
-    assert put == pytest.approx(ref_put, abs=1e-12)
+    assert call == pytest.approx(_bs_reference(S, K, T, r, q, vol, "call"), abs=1e-12)
+    assert put == pytest.approx(_bs_reference(S, K, T, r, q, vol, "put"), abs=1e-12)
     assert call - put == pytest.approx(S * math.exp(-q * T) - K * math.exp(-r * T), abs=1e-12)
-    assert bs.greeks(S, K, T, r, q, vol, "call") == pytest.approx(ref_call_g, abs=1e-12)
-    assert bs.greeks(S, K, T, r, q, vol, "put") == pytest.approx(ref_put_g, abs=1e-12)
+
+    # Central differences of bs.price. Not a second copy of the Greek formulas.
+    # Theta is -dP/dT, the calendar-time derivative.
+    def price(kind, **kw):
+        args = {"S": S, "K": K, "T": T, "r": r, "q": q, "vol": vol, "kind": kind}
+        args.update(kw)
+        return float(bs.price(**args))
+
+    h = 1e-4
+    for kind in ("call", "put"):
+        g = bs.greeks(S, K, T, r, q, vol, kind)
+        assert g["delta"] == pytest.approx((price(kind, S=S + h) - price(kind, S=S - h)) / (2 * h), rel=1e-5)
+        assert g["vega"] == pytest.approx((price(kind, vol=vol + h) - price(kind, vol=vol - h)) / (2 * h), rel=1e-5)
+        assert g["theta"] == pytest.approx(-(price(kind, T=T + h) - price(kind, T=T - h)) / (2 * h), rel=1e-4)
 
 
 def test_iv_round_trip_across_moneyness_and_maturity():
@@ -164,12 +162,12 @@ def test_iv_rejects_prices_outside_bounds(kind, strike):
     # Strictly outside the no-arbitrage interval. These have no volatility.
     for price in (intrinsic - 0.05, upper + 0.05, -1.0):
         assert math.isnan(implied_vol(price, S, K, T, r, q, kind))
-    # Exactly at discounted intrinsic is the vol → 0 limit. The solver bracket
-    # starts at 1e-4, so this endpoint is not inside the open interval and the
-    # function returns NaN rather than 0. Separate from the violations above:
-    # returning 0 here would be a reasonable later change, not a broken check.
+    # Exactly at discounted intrinsic or at the upper bound. implied_vol returns
+    # NaN because of the strict guard `intrinsic < p < upper`, which runs before
+    # Brent. The (1e-4, 5) bracket is not involved: widening it would not return
+    # 0 here. Kept separate from the violations above so a later change that
+    # returns 0 at intrinsic is not mixed in with those checks.
     assert math.isnan(implied_vol(intrinsic, S, K, T, r, q, kind))
-    # The upper bound is reached only as vol → ∞, so no finite vol is returned.
     assert math.isnan(implied_vol(upper, S, K, T, r, q, kind))
     inside = float(bs.price(S, K, T, r, q, 0.22, kind))
     assert intrinsic < inside < upper
@@ -237,11 +235,15 @@ def test_calendar_flags_a_crossing_and_passes_a_clean_surface():
     hand_far = _flat_smile(grid, 0.05, 0.02, sigma)
     assert np.allclose(svi.total_var(grid, **near), hand_near, atol=1e-12)
     assert np.allclose(svi.total_var(grid, **far), hand_far, atol=1e-12)
-    violated = hand_far - hand_near < -1e-6
+    # Every knot is at least 1e-4 away from the crossing, so a cutoff near 1e-6
+    # cannot move a point from one side to the other.
+    assert np.min(np.abs(np.abs(grid) - threshold)) > 1e-4
+    assert np.min(np.abs(hand_far - hand_near)) > 1e-5
+    violated = np.abs(grid) > threshold
     assert violated[0] and violated[-1]
-    assert not violated[np.abs(grid) < threshold - 1e-8].any()
-    assert violated[np.abs(grid) > threshold + 1e-8].all()
+    assert not violated[grid.size // 2]
     assert int(violated.sum()) > 2
+    assert np.all((hand_far - hand_near < 0) == violated)
     assert svi.calendar_violations([near, far], grid) == int(violated.sum())
     assert svi.calendar_violations_by_pair([near, far], grid) == [
         {
