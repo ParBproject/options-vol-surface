@@ -106,19 +106,25 @@ def test_black_scholes_with_dividend_yield():
     assert put == pytest.approx(_bs_reference(S, K, T, r, q, vol, "put"), abs=1e-12)
     assert call - put == pytest.approx(S * math.exp(-q * T) - K * math.exp(-r * T), abs=1e-12)
 
-    # Central differences of bs.price. Not a second copy of the Greek formulas.
-    # Theta is -dP/dT, the calendar-time derivative.
+    # Differences of bs.price, not a second copy of the Greek formulas.
+    # r and q are both nonzero here, so a missing e^{-qT} on gamma or a wrong
+    # discount on rho shows up. Theta is -dP/dT.
     def price(kind, **kw):
         args = {"S": S, "K": K, "T": T, "r": r, "q": q, "vol": vol, "kind": kind}
         args.update(kw)
         return float(bs.price(**args))
 
     h = 1e-4
+    hg = 1e-3  # wider spot step: a 1e-4 second difference is mostly rounding
     for kind in ("call", "put"):
         g = bs.greeks(S, K, T, r, q, vol, kind)
         assert g["delta"] == pytest.approx((price(kind, S=S + h) - price(kind, S=S - h)) / (2 * h), rel=1e-5)
+        assert g["gamma"] == pytest.approx(
+            (price(kind, S=S + hg) - 2 * price(kind) + price(kind, S=S - hg)) / hg**2, rel=1e-5
+        )
         assert g["vega"] == pytest.approx((price(kind, vol=vol + h) - price(kind, vol=vol - h)) / (2 * h), rel=1e-5)
         assert g["theta"] == pytest.approx(-(price(kind, T=T + h) - price(kind, T=T - h)) / (2 * h), rel=1e-4)
+        assert g["rho"] == pytest.approx((price(kind, r=r + h) - price(kind, r=r - h)) / (2 * h), rel=1e-5)
 
 
 def test_iv_round_trip_across_moneyness_and_maturity():
